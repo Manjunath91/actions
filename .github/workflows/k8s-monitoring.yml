@@ -1,0 +1,49 @@
+name: Kubernetes Monitoring Setup
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  setup-k8s-monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Install Helm
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      # Set up Kubernetes cluster using KinD
+      - name: Set up Kubernetes with KinD
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: kind
+
+      # Install Prometheus using Helm
+      - name: Install Prometheus
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm install prometheus prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace
+
+      # Install Grafana using Helm
+      - name: Install Grafana
+        run: |
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+          helm install grafana grafana/grafana --namespace monitoring
+
+      # Port-forward Grafana for testing
+      - name: Port-forward Grafana
+        run: |
+          kubectl port-forward svc/grafana 3000:80 -n monitoring &
+
+      # Get Grafana admin password
+      - name: Retrieve Grafana Admin Password
+        run: |
+          kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode
